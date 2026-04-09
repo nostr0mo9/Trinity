@@ -68,30 +68,17 @@ class FilterDataProvider: NEFilterDataProvider {
         // Drop all routing to iCloud Private Relay to force standard routing visibility
         let privateRelayNodes = ["mask.icloud.com", "mask-h2.icloud.com"]
         
-        guard let browserFlow = flow as? NEFilterBrowserFlow,
-              let url = browserFlow.url,
-              let host = url.host?.lowercased() else {
+        if let socketFlow = flow as? NEFilterSocketFlow,
+           let remote = socketFlow.remoteEndpoint as? NWHostEndpoint {
+            let remoteHost = remote.hostname.lowercased()
             
-            // If it's a raw socket flow, evaluate the SNI/remote endpoint
-            if let socketFlow = flow as? NEFilterSocketFlow,
-               let remote = socketFlow.remoteEndpoint as? NWHostEndpoint {
-                let remoteHost = remote.hostname.lowercased()
-                if privateRelayNodes.contains(remoteHost) {
-                    return .drop()
-                }
-                if evaluateHost(remoteHost) {
-                    return .drop()
-                }
+            if privateRelayNodes.contains(remoteHost) {
+                return .drop()
             }
-            return .allow()
-        }
-        
-        if privateRelayNodes.contains(host) {
-            return .drop()
-        }
-        
-        if evaluateHost(host) {
-            return .drop()
+            
+            if evaluateHost(remoteHost) {
+                return .drop()
+            }
         }
         
         return .allow()

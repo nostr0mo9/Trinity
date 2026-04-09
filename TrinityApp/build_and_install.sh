@@ -68,7 +68,7 @@ cat <<EOF > build/cli.entitlements
     <array>
         <string>group.com.nostr0mo9.trinity</string>
     </array>
-    <key>com.apple.system-extension.install</key>
+    <key>com.apple.developer.system-extension.install</key>
     <true/>
 </dict>
 </plist>

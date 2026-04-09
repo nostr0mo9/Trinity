@@ -190,7 +190,7 @@ class ExtensionManagerDelegate: NSObject, OSSystemExtensionRequestDelegate {
     let isStopRequest: Bool
     init(isStopRequest: Bool = false) { self.isStopRequest = isStopRequest }
     
-    func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties, withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionReplacementAction {
+    func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties, withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
         return .replace
     }
     
