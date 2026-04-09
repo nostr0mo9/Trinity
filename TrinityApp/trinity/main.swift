@@ -233,6 +233,16 @@ func runStart() {
         print("\u{001B}[31mError: `trinity start` must be run with sudo.\u{001B}[0m")
         exit(1)
     }
+    
+    // Quietly attempt to tear down any existing daemon with the same name
+    let cleanup = Process()
+    cleanup.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    cleanup.arguments = ["bootout", "system/com.trinity.daemon"]
+    cleanup.standardOutput = Pipe()
+    cleanup.standardError = Pipe()
+    try? cleanup.run()
+    cleanup.waitUntilExit()
+    
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
     process.arguments = ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"]
@@ -240,7 +250,7 @@ func runStart() {
         try process.run()
         process.waitUntilExit()
         if process.terminationStatus == 0 {
-            print("\u{001B}[32mDaemon started successfully.\u{001B}[0m")
+            print("\n\u{001B}[32mTrinity started successfully.\u{001B}[0m")
         } else {
             print("\u{001B}[31mFailed to start daemon (maybe already running?).\u{001B}[0m")
         }
@@ -266,7 +276,7 @@ func runStop() {
         try process.run()
         process.waitUntilExit()
         if process.terminationStatus == 0 {
-            print("\u{001B}[32mDaemon completely stopped.\u{001B}[0m")
+            print("\n\u{001B}[32mTrinity completely stopped.\u{001B}[0m")
         } else {
             print("\u{001B}[31mFailed to stop daemon (maybe it's not running?).\u{001B}[0m")
         }
