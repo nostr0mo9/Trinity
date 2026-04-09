@@ -60,6 +60,18 @@ public class HostsManager {
         }
     }
     
+    private func flushDNS() {
+        let task1 = Process()
+        task1.executableURL = URL(fileURLWithPath: "/usr/bin/dscacheutil")
+        task1.arguments = ["-flushcache"]
+        try? task1.run()
+        
+        let task2 = Process()
+        task2.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+        task2.arguments = ["-HUP", "mDNSResponder"]
+        try? task2.run()
+    }
+    
     public func apply(blockedDomains: [String]) {
         do {
             let currentContent = try String(contentsOfFile: hostsPath, encoding: .utf8)
@@ -95,10 +107,10 @@ public class HostsManager {
                     let cleanDomain = domain.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !cleanDomain.isEmpty {
                         newLines.append("0.0.0.0 \(cleanDomain)")
-                        newLines.append(":: \(cleanDomain)")
+                        newLines.append("::1 \(cleanDomain)")
                         if !cleanDomain.starts(with: "www.") {
                             newLines.append("0.0.0.0 www.\(cleanDomain)")
-                            newLines.append(":: www.\(cleanDomain)")
+                            newLines.append("::1 www.\(cleanDomain)")
                         }
                     }
                 }
@@ -109,6 +121,7 @@ public class HostsManager {
             
             if resultString != currentContent {
                 try resultString.write(toFile: hostsPath, atomically: true, encoding: .utf8)
+                flushDNS()
             }
             
         } catch {
