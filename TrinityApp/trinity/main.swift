@@ -2,6 +2,7 @@ import Foundation
 import CryptoKit
 
 let applyUnlockFlag = "--apply-unlock"
+let TRINITY_VERSION = "v1.0.0"
 
 func runApplyUnlock() {
     if getuid() != 0 {
@@ -148,10 +149,12 @@ func printHelp() {
       trinity list             - View all currently blocked websites
       trinity status           - View daemon and lock status
       trinity unlock           - Begin the math challenge to unlock the system
+      trinity version          - Print the installed version
       
     Management (Requires Sudo):
       sudo trinity start       - Boot the background daemon
       sudo trinity stop        - Tear down the background daemon (fails if locked)
+      sudo trinity update      - Automatically download and apply latest GitHub releases
     """)
 }
 
@@ -392,6 +395,184 @@ func startChallenge() {
     }
 }
 
+func runUpdate() {
+    if getuid() != 0 {
+        print("\u{001B}[31mError: `trinity update` must be run with sudo.\u{001B}[0m")
+        exit(1)
+    }
+
+    print("Checking for updates...")
+    
+    guard let url = URL(string: "https://api.github.com/repos/nostr0mo9/Trinity/releases/latest") else { exit(1) }
+    var request = URLRequest(url: url)
+    request.setValue("Trinity-Updater", forHTTPHeaderField: "User-Agent")
+    
+    let semaphore = DispatchSemaphore(value: 0)
+    var responseData: Data?
+    var httpError: Error?
+    
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        responseData = data
+        httpError = error
+        semaphore.signal()
+    }
+    task.resume()
+    semaphore.wait()
+    
+    guard let data = responseData, httpError == nil else {
+        print("\u{001B}[31mFailed to connect to GitHub. Are you offline?\u{001B}[0m")
+        exit(1)
+    }
+    
+    struct GitHubAsset: Decodable {
+        let name: String
+        let browser_download_url: String
+    }
+    struct GitHubRelease: Decodable {
+        let tag_name: String
+        let assets: [GitHubAsset]
+    }
+    
+    guard let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+        print("\u{001B}[31mFailed to parse GitHub dataset. No remote releases found.\u{001B}[0m")
+        exit(1)
+    }
+    
+    print("\nCurrent Version: \u{001B}[36m\(TRINITY_VERSION)\u{001B}[0m")
+    print("Latest Version:  \u{001B}[32m\(release.tag_name)\u{001B}[0m\n")
+    
+    if release.tag_name == TRINITY_VERSION {
+        print("You are already fully up to date!")
+        exit(0)
+    }
+    
+    guard let asset = release.assets.first(where: { $0.name == "trinity-release.zip" }) else {
+        print("\u{001B}[31mLatest release (\(release.tag_name)) does not contain 'trinity-release.zip'. Update aborted.\u{001B}[0m")
+        exit(1)
+    }
+    
+    print("Proceed with update? [y/N]: ", terminator: "")
+    guard let answer = readLine()?.lowercased(), answer == "y" || answer == "yes" else {
+        print("Update cancelled.")
+        exit(0)
+    }
+    
+    print("\n\u{001B}[33mDownloading update...\u{001B}[0m")
+    
+    let fm = FileManager.default
+    let tmpDir = "/tmp/TrinityUpdateEnv"
+    let zipPath = "\\(tmpDir)/trinity-release.zip"
+    
+    try? fm.removeItem(atPath: tmpDir)
+    try? fm.createDirectory(atPath: tmpDir, withIntermediateDirectories: true, attributes: nil)
+    
+    let curl = Process()
+    curl.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+    curl.arguments = ["-sL", asset.browser_download_url, "-o", zipPath]
+    try? curl.run()
+    curl.waitUntilExit()
+    
+    guard curl.terminationStatus == 0, fm.fileExists(atPath: zipPath) else {
+        print("\u{001B}[31mFailed to download update artifact.\u{001B}[0m")
+        exit(1)
+    }
+    
+    let unzip = Process()
+    unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    unzip.arguments = ["-q", "-o", zipPath, "-d", tmpDir]
+    try? unzip.run()
+    unzip.waitUntilExit()
+    
+    guard unzip.terminationStatus == 0 else {
+        print("\u{001B}[31mFailed to extract update artifact.\u{001B}[0m")
+        exit(1)
+    }
+    
+    let newCli = "\\(tmpDir)/trinity"
+    let newDaemon = "\\(tmpDir)/TrinityDaemon"
+    
+    guard fm.fileExists(atPath: newCli), fm.fileExists(atPath: newDaemon) else {
+        print("\u{001B}[31mValidation failed: Extracted zip is missing required binaries. Update aborted.\u{001B}[0m")
+        exit(1)
+    }
+    
+    print("Creating safe backups...")
+    let cliTarget = "/usr/local/bin/trinity"
+    let daemonTarget = "/Library/Application Support/Trinity/TrinityDaemon"
+    
+    let cliBackup = "/tmp/trinity.backup"
+    let daemonBackup = "/tmp/TrinityDaemon.backup"
+    
+    try? fm.removeItem(atPath: cliBackup); try? fm.removeItem(atPath: daemonBackup)
+    try? fm.copyItem(atPath: cliTarget, toPath: cliBackup)
+    try? fm.copyItem(atPath: daemonTarget, toPath: daemonBackup)
+    
+    print("Applying system update...")
+    let bootout = Process()
+    bootout.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    bootout.arguments = ["bootout", "system/com.trinity.daemon"]
+    bootout.standardOutput = Pipe(); bootout.standardError = Pipe()
+    try? bootout.run(); bootout.waitUntilExit()
+    
+    do {
+        try fm.removeItem(atPath: cliTarget); try fm.removeItem(atPath: daemonTarget)
+        try fm.copyItem(atPath: newCli, toPath: cliTarget)
+        try fm.copyItem(atPath: newDaemon, toPath: daemonTarget)
+        
+        // Assert Hard Permissions
+        let chown = Process()
+        chown.executableURL = URL(fileURLWithPath: "/usr/sbin/chown")
+        chown.arguments = ["root:wheel", cliTarget, daemonTarget]
+        try chown.run(); chown.waitUntilExit()
+        
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["755", cliTarget, daemonTarget]
+        try chmod.run(); chmod.waitUntilExit()
+        
+    } catch {
+        print("\u{001B}[31mCritical failure transposing files... Initiating ROLLBACK\u{001B}[0m")
+        try? fm.removeItem(atPath: cliTarget); try? fm.removeItem(atPath: daemonTarget)
+        try? fm.copyItem(atPath: cliBackup, toPath: cliTarget)
+        try? fm.copyItem(atPath: daemonBackup, toPath: daemonTarget)
+        _ = try? Process.run(URL(fileURLWithPath: "/bin/launchctl"), arguments: ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"])
+        print("\u{001B}[31mRollback complete. Update aborted.\u{001B}[0m")
+        exit(1)
+    }
+    
+    let bootstrap = Process()
+    bootstrap.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    bootstrap.arguments = ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"]
+    bootstrap.standardOutput = Pipe(); bootstrap.standardError = Pipe()
+    try? bootstrap.run(); bootstrap.waitUntilExit()
+    
+    let verify = Process()
+    verify.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    verify.arguments = ["print", "system/com.trinity.daemon"]
+    verify.standardOutput = Pipe(); verify.standardError = Pipe()
+    try? verify.run(); verify.waitUntilExit()
+    
+    if verify.terminationStatus == 0 {
+        print("\n\u{001B}[32mTrinity perfectly updated to \(release.tag_name)!\u{001B}[0m")
+        try? fm.removeItem(atPath: cliBackup); try? fm.removeItem(atPath: daemonBackup)
+        try? fm.removeItem(atPath: tmpDir)
+    } else {
+        print("\u{001B}[31mDaemon failed to restart cleanly... Initiating ROLLBACK\u{001B}[0m")
+        let clean = Process()
+        clean.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        clean.arguments = ["bootout", "system/com.trinity.daemon"]
+        clean.standardOutput = Pipe(); clean.standardError = Pipe()
+        try? clean.run(); clean.waitUntilExit()
+        
+        try? fm.removeItem(atPath: cliTarget); try? fm.removeItem(atPath: daemonTarget)
+        try? fm.copyItem(atPath: cliBackup, toPath: cliTarget)
+        try? fm.copyItem(atPath: daemonBackup, toPath: daemonTarget)
+        _ = try? Process.run(URL(fileURLWithPath: "/bin/launchctl"), arguments: ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"])
+        print("\u{001B}[31mRollback complete. Previous version restored seamlessly.\u{001B}[0m")
+        exit(1)
+    }
+}
+
 let args = CommandLine.arguments
 if args.contains(applyUnlockFlag) {
     runApplyUnlock()
@@ -426,6 +607,10 @@ if args.count > 1 {
         } else {
             print("\u{001B}[32mSystem is already unlocked. No math required!\u{001B}[0m")
         }
+    case "version":
+        print("Trinity (\(TRINITY_VERSION))")
+    case "update":
+        runUpdate()
     case "help":
         printHelp()
     default:
