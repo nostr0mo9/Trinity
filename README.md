@@ -75,3 +75,5 @@ sudo trinity start
 ## Security Model & Data Paths
 - **Executable Paths**: `trinity` lives universally at `/usr/local/bin/trinity`. The actual enforcer is isolated at `/Library/Application Support/Trinity/TrinityDaemon`.
 - **Persistent Data**: The blocklists and locking state logic are stored safely inside `/Users/Shared/Trinity/`. Because the daemon cleanly separates executables from user data, updating the CLI code will never reset your lists or allow you to escape an active math challenge restriction.
+
+> **Note:** Because Trinity runs as a system LaunchDaemon, it automatically survives computer restarts. Once you install and start the daemon, the blocker will automatically boot up silently in the background every single time you turn on your Mac, even before you log in!
