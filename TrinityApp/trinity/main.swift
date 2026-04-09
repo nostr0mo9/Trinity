@@ -138,19 +138,157 @@ func generateUniqueProblem(used: inout Set<String>, index: Int) -> MathProblem {
     }
 }
 
+func printHelp() {
+    print("""
+    \u{001B}[1;32mTRINITY\u{001B}[0m - System-Wide Website Blocker
+    
+    Usage:
+      trinity block <domain>   - Add a website to the blocker immediately
+      trinity unblock <domain> - Remove a website (only works if unlocked)
+      trinity list             - View all currently blocked websites
+      trinity status           - View daemon and lock status
+      trinity unlock           - Begin the math challenge to unlock the system
+      
+    Management (Requires Sudo):
+      sudo trinity start       - Boot the background daemon
+      sudo trinity stop        - Tear down the background daemon (fails if locked)
+    """)
+}
+
+func loadConfig() -> TrinityConfig {
+    if let data = try? Data(contentsOf: TrinityPaths.configURL),
+       let config = try? JSONDecoder().decode(TrinityConfig.self, from: data) {
+        return config
+    }
+    return TrinityConfig(blockedDomains: [])
+}
+
+func saveConfig(_ config: TrinityConfig) {
+    do {
+        try FileManager.default.createDirectory(at: TrinityPaths.appSupportDir, withIntermediateDirectories: true, attributes: nil)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(config)
+        try data.write(to: TrinityPaths.configURL, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: TrinityPaths.configURL.path)
+    } catch {
+        print("\u{001B}[31mError saving configuration: \(error)\u{001B}[0m")
+    }
+}
+
+func getIsLocked() -> Bool {
+    if let data = try? Data(contentsOf: TrinityPaths.stateURL),
+       let state = try? JSONDecoder().decode(TrinityState.self, from: data) {
+        return !state.isCurrentlyUnlocked
+    }
+    return true
+}
+
+func runBlock(domain: String) {
+    let clean = domain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if clean.isEmpty { return }
+    var config = loadConfig()
+    if !config.blockedDomains.contains(clean) {
+        config.blockedDomains.append(clean)
+        saveConfig(config)
+        print("\u{001B}[32mBlocked: \(clean)\u{001B}[0m")
+    } else {
+        print("\(clean) is already blocked.")
+    }
+}
+
+func runUnblock(domain: String) {
+    let locked = getIsLocked()
+    if locked {
+        print("\u{001B}[31mSystem is LOCKED. You cannot remove domains.\u{001B}[0m")
+        print("Run `trinity unlock` in the terminal to gain temporary access.")
+        exit(1)
+    }
+    
+    let clean = domain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    var config = loadConfig()
+    if let idx = config.blockedDomains.firstIndex(of: clean) {
+        config.blockedDomains.remove(at: idx)
+        saveConfig(config)
+        print("\u{001B}[32mUnblocked: \(clean)\u{001B}[0m")
+    } else {
+        print("\(clean) is not in the blocklist.")
+    }
+}
+
+func runList() {
+    let config = loadConfig()
+    if config.blockedDomains.isEmpty {
+        print("Blocklist is currently empty.")
+    } else {
+        print("\u{001B}[1mBlocked Domains:\u{001B}[0m")
+        for domain in config.blockedDomains {
+            print("  - \(domain)")
+        }
+    }
+}
+
+func runStart() {
+    if getuid() != 0 {
+        print("\u{001B}[31mError: `trinity start` must be run with sudo.\u{001B}[0m")
+        exit(1)
+    }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    process.arguments = ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"]
+    do {
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus == 0 {
+            print("\u{001B}[32mDaemon started successfully.\u{001B}[0m")
+        } else {
+            print("\u{001B}[31mFailed to start daemon (maybe already running?).\u{001B}[0m")
+        }
+    } catch {
+        print("Execution error: \(error)")
+    }
+}
+
+func runStop() {
+    if getuid() != 0 {
+        print("\u{001B}[31mError: `trinity stop` must be run with sudo.\u{001B}[0m")
+        exit(1)
+    }
+    if getIsLocked() {
+        print("\u{001B}[31mError: System is LOCKED. You cannot stop the daemon right now.\u{001B}[0m")
+        print("Run `trinity unlock` to gain temporary access.")
+        exit(1)
+    }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    process.arguments = ["bootout", "system/com.trinity.daemon"]
+    do {
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus == 0 {
+            print("\u{001B}[32mDaemon completely stopped.\u{001B}[0m")
+        } else {
+            print("\u{001B}[31mFailed to stop daemon (maybe it's not running?).\u{001B}[0m")
+        }
+    } catch {
+        print("Execution error: \(error)")
+    }
+}
+
 func printStatus() {
     print("\n\u{001B}[1m--- TRINITY STATUS ---\u{001B}[0m")
     
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-    process.arguments = ["-x", "TrinityDaemon"]
+    process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    process.arguments = ["print", "system/com.trinity.daemon"]
     let pipe = Pipe()
     process.standardOutput = pipe
+    process.standardError = pipe
     try? process.run()
     process.waitUntilExit()
     
     let isRunning = process.terminationStatus == 0
-    let daemonState = isRunning ? "Active & Running" : "Not Running"
+    let daemonState = isRunning ? "Active & Installed" : "Not Installed"
     let color = isRunning ? "\u{001B}[32m" : "\u{001B}[31m"
     print("Daemon: \(color)\(daemonState)\u{001B}[0m")
     
@@ -164,11 +302,7 @@ func printStatus() {
         }
     }
     
-    var configDomains = 0
-    if let configData = try? Data(contentsOf: TrinityPaths.configURL),
-       let config = try? JSONDecoder().decode(TrinityConfig.self, from: configData) {
-        configDomains = config.blockedDomains.count
-    }
+    let configDomains = loadConfig().blockedDomains.count
     
     if isLocked {
         print("Enforcement: \u{001B}[31mLOCKED\u{001B}[0m")
@@ -256,31 +390,38 @@ if args.contains(applyUnlockFlag) {
 
 if args.count > 1 {
     switch args[1] {
-    case "unlock":
-        var isLocked = true
-        if let data = try? Data(contentsOf: TrinityPaths.stateURL),
-           let state = try? JSONDecoder().decode(TrinityState.self, from: data) {
-            isLocked = !state.isCurrentlyUnlocked
+    case "block":
+        if args.count > 2 {
+            runBlock(domain: args[2])
+        } else {
+            print("\u{001B}[31mUsage: trinity block <domain>\u{001B}[0m")
         }
-        
-        if isLocked {
+    case "unblock":
+        if args.count > 2 {
+            runUnblock(domain: args[2])
+        } else {
+            print("\u{001B}[31mUsage: trinity unblock <domain>\u{001B}[0m")
+        }
+    case "list":
+        runList()
+    case "start":
+        runStart()
+    case "stop":
+        runStop()
+    case "status":
+        printStatus()
+    case "unlock":
+        if getIsLocked() {
             startChallenge()
         } else {
             print("\u{001B}[32mSystem is already unlocked. No math required!\u{001B}[0m")
         }
-    case "status":
-        printStatus()
+    case "help":
+        printHelp()
     default:
-        print("""
-        Usage:
-          trinity status    - Check daemon status and lock state
-          trinity unlock    - Begin the unlock challenge
-        """)
+        print("\u{001B}[31mUnknown command: \(args[1])\u{001B}[0m")
+        printHelp()
     }
 } else {
-    print("""
-    Usage:
-      trinity status    - Check daemon status and lock state
-      trinity unlock    - Begin the unlock challenge
-    """)
+    printHelp()
 }
