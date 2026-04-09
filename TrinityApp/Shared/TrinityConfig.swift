@@ -29,4 +29,7 @@ public enum TrinityPaths {
     public static let appSupportDir = URL(fileURLWithPath: "/Users/Shared/Trinity")
     public static let configURL = appSupportDir.appendingPathComponent("config.json")
     public static let stateURL = appSupportDir.appendingPathComponent("state.json")
+    
+    public static let protectedDir = URL(fileURLWithPath: "/Library/Application Support/Trinity")
+    public static let hostsBackupURL = protectedDir.appendingPathComponent("hosts.backup")
 }

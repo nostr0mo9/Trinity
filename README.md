@@ -72,6 +72,32 @@ sudo trinity start
 
 ---
 
+## Emergency Administrator Recovery
+
+We designed Trinity to be mathematically ruthless, but it is **not** malware. If files are accidentally deleted or a catastrophic system failure occurs, it will "Fail-Closed" and keep the websites permanently blocked.
+
+However, there is always a supported administrative escape hatch:
+
+**Option 1: Re-Installation (Recommended)**
+If you delete the `trinity` CLI to bypass the lock, the Math Challenge becomes inaccessible. To get it back, you do not need to start over! Simply [download the latest release](https://github.com/nostr0mo9/Trinity/releases) or recompile from GitHub. Re-running the installation magically re-attaches to the background daemon, returning your access to the `trinity unlock` feature natively.
+
+**Option 2: Nuclear Uninstall (Admin Only)**
+If you completely forget your passwords, or there is a catastrophic bug, a system administrator can manually sever the routing tables using the initial backup file Trinity saved on boot:
+```bash
+# 1. Kill the background daemon
+sudo launchctl bootout system/com.trinity.daemon
+
+# 2. Restore your pristine networking routing configurations
+sudo cp '/Library/Application Support/Trinity/hosts.backup' /etc/hosts
+
+# 3. Clean out the application environments
+sudo rm -rf '/Library/Application Support/Trinity'
+sudo rm -rf '/Users/Shared/Trinity'
+sudo rm /usr/local/bin/trinity
+```
+
+---
+
 ## Security Model & Data Paths
 - **Executable Paths**: `trinity` lives universally at `/usr/local/bin/trinity`. The actual enforcer is isolated at `/Library/Application Support/Trinity/TrinityDaemon`.
 - **Persistent Data**: The blocklists and locking state logic are stored safely inside `/Users/Shared/Trinity/`. Because the daemon cleanly separates executables from user data, updating the CLI code will never reset your lists or allow you to escape an active math challenge restriction.
