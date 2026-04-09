@@ -26,9 +26,14 @@ public struct TrinityState: Codable {
 }
 
 public enum TrinityPaths {
-    public static let appSupportDir = URL(fileURLWithPath: "/Users/Shared/Trinity")
-    public static let configURL = appSupportDir.appendingPathComponent("config.json")
-    public static let stateURL = appSupportDir.appendingPathComponent("state.json")
+    public static var appGroupDir: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.nostr0mo9.trinity")
+    }
+    public static var appSupportDir: URL {
+        appGroupDir ?? URL(fileURLWithPath: "/Users/Shared/Trinity")
+    }
+    public static var configURL: URL { appSupportDir.appendingPathComponent("config.json") }
+    public static var stateURL: URL { appSupportDir.appendingPathComponent("state.json") }
     
     public static let protectedDir = URL(fileURLWithPath: "/Library/Application Support/Trinity")
     public static let hostsBackupURL = protectedDir.appendingPathComponent("hosts.backup")

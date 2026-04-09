@@ -184,29 +184,55 @@ func printStatus() {
     printCyberPanel()
 }
 
+import SystemExtensions
+
+class ExtensionManagerDelegate: NSObject, OSSystemExtensionRequestDelegate {
+    let isStopRequest: Bool
+    init(isStopRequest: Bool = false) { self.isStopRequest = isStopRequest }
+    
+    func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties, withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionReplacementAction {
+        return .replace
+    }
+    
+    func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
+        printCyberPanel(headerTitle: "APPROVAL REQUIRED", customLines: [
+            ("Trinity requires explicit OS permission.", red),
+            ("Open System Settings -> Network -> VPN & Filters.", dim),
+            ("Click 'Allow' for Trinity to intercept traffic.", dim)
+        ])
+    }
+    
+    func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
+        if result == .completed {
+            if isStopRequest {
+                printCyberPanel(headerTitle: "SYSTEM TEARDOWN", customLines: [("Trinity Content Filter safely removed from kernel.", green)])
+            } else {
+                printCyberPanel(headerTitle: "SYSTEM BOOT", customLines: [("Trinity Content Filter installed perfectly.", green)])
+            }
+        }
+        exit(0)
+    }
+    
+    func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+        printCyberPanel(headerTitle: "SYSTEM BOOT FAILED", customLines: [("Extension failure: \(error.localizedDescription)", red)])
+        exit(1)
+    }
+}
+
+let sharedExtDelegate = ExtensionManagerDelegate(isStopRequest: false)
+let sharedStopDelegate = ExtensionManagerDelegate(isStopRequest: true)
+
 func runStart() {
     if getuid() != 0 {
         printCyberPanel(headerTitle: "INSUFFICIENT PRIVILEGES", customLines: [("Error: `trinity start` must be run with sudo.", red)])
         exit(1)
     }
-    let cleanup = Process()
-    cleanup.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-    cleanup.arguments = ["bootout", "system/com.trinity.daemon"]
-    try? cleanup.run(); cleanup.waitUntilExit()
     
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-    process.arguments = ["bootstrap", "system", "/Library/LaunchDaemons/com.trinity.daemon.plist"]
-    do {
-        try process.run(); process.waitUntilExit()
-        if process.terminationStatus == 0 {
-            printCyberPanel(headerTitle: "SYSTEM BOOT", customLines: [("Daemon boot sequence successful.", green), ("Trinity is now active in the background.", green)])
-        } else {
-            printCyberPanel(headerTitle: "SYSTEM BOOT FAILED", customLines: [("Failed to start daemon. Already running?", red)])
-        }
-    } catch {
-        print("Execution error: \(error)")
-    }
+    print("\(themeColor)0101010101010  \(bold)Initiating extension kernel injection... \(reset)")
+    let req = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: "com.nostr0mo9.trinity.extension", queue: .main)
+    req.delegate = sharedExtDelegate
+    OSSystemExtensionManager.shared.submitRequest(req)
+    RunLoop.main.run()
 }
 
 func runStop() {
@@ -215,23 +241,15 @@ func runStop() {
         exit(1)
     }
     if getLockInfo().isLocked {
-        printCyberPanel(headerTitle: "ACCESS DENIED", customLines: [("Error: System is LOCKED.", red), ("You cannot stop the daemon right now.", red), ("Run `trinity unlock` to gain temporary access.", dim)])
+        printCyberPanel(headerTitle: "ACCESS DENIED", customLines: [("Error: System is LOCKED.", red), ("You cannot disable the blocker right now.", red), ("Run `trinity unlock` to gain temporary access.", dim)])
         exit(1)
     }
     
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-    process.arguments = ["bootout", "system/com.trinity.daemon"]
-    do {
-        try process.run(); process.waitUntilExit()
-        if process.terminationStatus == 0 {
-            printCyberPanel(headerTitle: "SYSTEM TEARDOWN", customLines: [("Trinity background daemon safely stopped.", green)])
-        } else {
-            printCyberPanel(headerTitle: "TEARDOWN FAILED", customLines: [("Failed to stop daemon. Is it running?", red)])
-        }
-    } catch {
-        print("Execution error: \(error)")
-    }
+    print("\(themeColor)0101010101010  \(bold)Initiating extension teardown sequence... \(reset)")
+    let req = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: "com.nostr0mo9.trinity.extension", queue: .main)
+    req.delegate = sharedStopDelegate
+    OSSystemExtensionManager.shared.submitRequest(req)
+    RunLoop.main.run()
 }
 
 func printHelp() {

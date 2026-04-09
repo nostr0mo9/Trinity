@@ -1,0 +1,42 @@
+Building Trinity System Ecosystem...
+Generating Network Extension Property Lists...
+Compiling Native Extension Code...
+Extension/FilterDataProvider.swift:71:42: error: 'NEFilterBrowserFlow' is unavailable in macOS
+ 69 |         let privateRelayNodes = ["mask.icloud.com", "mask-h2.icloud.com"]
+ 70 |         
+ 71 |         guard let browserFlow = flow as? NEFilterBrowserFlow,
+    |                                          `- error: 'NEFilterBrowserFlow' is unavailable in macOS
+ 72 |               let url = browserFlow.url,
+ 73 |               let host = url.host?.lowercased() else {
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/NetworkExtension.framework/Headers/NEFilterFlow.h:96:12: note: 'NEFilterBrowserFlow' has been explicitly marked unavailable here
+ 94 |  */
+ 95 | API_AVAILABLE(ios(9.0)) API_UNAVAILABLE(macos, watchos, tvos)
+ 96 | @interface NEFilterBrowserFlow : NEFilterFlow <NSSecureCoding,NSCopying>
+    |            `- note: 'NEFilterBrowserFlow' has been explicitly marked unavailable here
+ 97 | /*!
+ 98 |  *	@property request
+
+Extension/FilterDataProvider.swift:77:59: warning: 'NWHostEndpoint' was deprecated in macOS 15.0: Use `nw_endpoint_t` in Network framework instead, see deprecation notice in <NetworkExtension/NWHostEndpoint.h>
+ 75 |             // If it's a raw socket flow, evaluate the SNI/remote endpoint
+ 76 |             if let socketFlow = flow as? NEFilterSocketFlow,
+ 77 |                let remote = socketFlow.remoteEndpoint as? NWHostEndpoint {
+    |                                                           `- warning: 'NWHostEndpoint' was deprecated in macOS 15.0: Use `nw_endpoint_t` in Network framework instead, see deprecation notice in <NetworkExtension/NWHostEndpoint.h>
+ 78 |                 let remoteHost = remote.hostname.lowercased()
+ 79 |                 if privateRelayNodes.contains(remoteHost) {
+
+Extension/FilterDataProvider.swift:77:40: warning: 'remoteEndpoint' was deprecated in macOS 15.0
+ 75 |             // If it's a raw socket flow, evaluate the SNI/remote endpoint
+ 76 |             if let socketFlow = flow as? NEFilterSocketFlow,
+ 77 |                let remote = socketFlow.remoteEndpoint as? NWHostEndpoint {
+    |                                        `- warning: 'remoteEndpoint' was deprecated in macOS 15.0
+ 78 |                 let remoteHost = remote.hostname.lowercased()
+ 79 |                 if privateRelayNodes.contains(remoteHost) {
+
+Extension/FilterDataProvider.swift:78:41: warning: 'hostname' was deprecated in macOS 15.0: Use `nw_endpoint_get_hostname` in Network framework instead, see deprecation notice in <NetworkExtension/NWHostEndpoint.h>
+ 76 |             if let socketFlow = flow as? NEFilterSocketFlow,
+ 77 |                let remote = socketFlow.remoteEndpoint as? NWHostEndpoint {
+ 78 |                 let remoteHost = remote.hostname.lowercased()
+    |                                         `- warning: 'hostname' was deprecated in macOS 15.0: Use `nw_endpoint_get_hostname` in Network framework instead, see deprecation notice in <NetworkExtension/NWHostEndpoint.h>
+ 79 |                 if privateRelayNodes.contains(remoteHost) {
+ 80 |                     return .drop()
