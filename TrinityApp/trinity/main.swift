@@ -243,6 +243,8 @@ func printHelp() {
         ("  trinity status           - View daemon status & lock state", reset),
         ("  trinity unlock           - Subject yourself to the test", reset),
         ("  trinity version          - Display matrix version", reset),
+        ("  trinity version          - Display matrix version", reset),
+        ("  trinity delete           - Permanently uninstall Trinity", reset),
         ("", reset),
         ("Administrative (Requires Sudo):", bold),
         ("  sudo trinity start       - Boot the background layer", dim),
@@ -258,12 +260,17 @@ func runVersion() {
 
 // --- MATH & UPDATE ---
 func startChallenge() {
+    signal(SIGINT) { _ in
+        print("\n\n\(red)Challenge aborted by user.\(reset)\n\n")
+        exit(0)
+    }
+    
     print("\u{001B}[2J\u{001B}[H", terminator: "")
     printCyberPanel(headerTitle: "INITIATE PROTOCOL", customLines: [
         ("SUBJECT REQUESTED OVERRIDE.", red),
         ("You must complete 100 math sequences.", dim),
         ("Incorrect answers require a retry.", dim),
-        ("Ctrl+C to abort.", dim)
+        ("Ctrl+C or type 'quit' to abort.", dim)
     ])
     
     let totalProblems = 100
@@ -288,9 +295,17 @@ func startChallenge() {
         while !solved {
             let progress = String(format: "%03d", completed + 1)
             print("\(themeColor)[\(progress)/\(totalProblems)]\(reset) \(bold)\(q) = \(reset)", terminator: "")
-            guard let input = readLine() else { exit(1) }
-            if input.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            if let pi = Int(input.trimmingCharacters(in: .whitespaces)) {
+            guard let input = readLine() else { 
+                print("\n\n\(red)Challenge aborted by user.\(reset)\n\n")
+                exit(0) 
+            }
+            let cleanedInput = input.trimmingCharacters(in: .whitespaces).lowercased()
+            if cleanedInput == "quit" {
+                print("\n\n\(red)Challenge aborted by user.\(reset)\n\n")
+                exit(0)
+            }
+            if cleanedInput.isEmpty { continue }
+            if let pi = Int(cleanedInput) {
                 if pi == ans {
                     solved = true; completed += 1;
                     if completed < totalProblems { print("\(green)  ↳ Correct\(reset)") }
@@ -508,6 +523,64 @@ func runUpdate() {
     }
 }
 
+func runDelete() {
+    if getuid() != 0 {
+        printCyberPanel(headerTitle: "INSUFFICIENT PRIVILEGES", customLines: [("Error: `trinity delete` must be run with sudo.", red)])
+        exit(1)
+    }
+    if getLockInfo().isLocked {
+        printCyberPanel(headerTitle: "ACCESS DENIED", customLines: [("Error: System is LOCKED.", red), ("You must unlock before uninstalling.", red), ("Run `trinity unlock` context.", dim)])
+        exit(1)
+    }
+    
+    print("\n\(themeColor)010\(reset)  \(bold)This will permanently uninstall Trinity from this Mac. Continue? [y/N] \(reset)", terminator: "")
+    guard let input = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(), input == "y" || input == "yes" else {
+        print("\(dim)Uninstall cancelled.\(reset)\n")
+        exit(0)
+    }
+    
+    print("\n\(themeColor)0101010101010\(reset)  \(bold)Initiating deep teardown sequence... \(reset)")
+    
+    let bootout = Process()
+    bootout.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    bootout.arguments = ["bootout", "system/com.trinity.daemon"]
+    bootout.standardOutput = Pipe(); bootout.standardError = Pipe()
+    try? bootout.run(); bootout.waitUntilExit()
+    print("\(green)  ↳ Daemon hook severed.\(reset)")
+    
+    let hostsPath = "/etc/hosts"
+    let startMarker = "# --- TRINITY START ---"
+    let endMarker = "# --- TRINITY END ---"
+    if let currentContent = try? String(contentsOfFile: hostsPath, encoding: .utf8), currentContent.contains(startMarker) {
+        let lines = currentContent.components(separatedBy: .newlines)
+        var newLines: [String] = []
+        var inside = false
+        for line in lines {
+            if line == startMarker { inside = true; continue }
+            if line == endMarker { inside = false; continue }
+            if !inside { newLines.append(line) }
+        }
+        while newLines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { newLines.removeLast() }
+        let newContent = newLines.joined(separator: "\n")
+        try? newContent.write(toFile: hostsPath, atomically: true, encoding: .utf8)
+        print("\(green)  ↳ System routing registry scrubbed.\(reset)")
+    }
+    
+    _ = try? Process.run(URL(fileURLWithPath: "/usr/bin/dscacheutil"), arguments: ["-flushcache"]).waitUntilExit()
+    _ = try? Process.run(URL(fileURLWithPath: "/usr/bin/killall"), arguments: ["-HUP", "mDNSResponder"]).waitUntilExit()
+    print("\(green)  ↳ DNS cache formally wiped.\(reset)")
+    print("\(green)  ↳ Application and configuration clusters destroyed.\(reset)")
+    
+    printCyberPanel(headerTitle: "A R C H I T E C T U R E   S H R E D D E D", customLines: [("Trinity has been fully uninstalled.", green)])
+    
+    let fm = FileManager.default
+    try? fm.removeItem(atPath: "/Library/LaunchDaemons/com.trinity.daemon.plist")
+    try? fm.removeItem(atPath: "/Library/Application Support/Trinity")
+    try? fm.removeItem(atPath: "/Users/Shared/Trinity")
+    try? fm.removeItem(atPath: "/usr/local/bin/trinity")
+    exit(0)
+}
+
 // ... Router
 let args = CommandLine.arguments
 if args.contains(applyUnlockFlag) { runApplyUnlock(); exit(0) }
@@ -522,6 +595,7 @@ if args.count > 1 {
     case "status": printStatus()
     case "unlock": getLockInfo().isLocked ? startChallenge() : printCyberPanel(headerTitle: "NO ACTION REQUIRED", customLines: [("System is already unlocked. No math required!", green)])
     case "version": runVersion()
+    case "delete": runDelete()
     case "help": printHelp()
     case "update": runUpdate()
     default: printHelp()
