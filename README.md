@@ -1,4 +1,4 @@
-# ⬛️ Trinity
+# ⬛️ Trinity ⬛️
 
 Trinity is a ruthless, terminal-based, system-wide website blocker engineered natively for both **macOS** and **Windows**. 
 
