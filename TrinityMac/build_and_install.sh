@@ -20,6 +20,12 @@ swiftc trinity/main.swift Shared/TrinityConfig.swift -o "$BUILD_DIR/trinity"
 echo "----------------------------------------"
 echo "Build complete! Artifacts are in $BUILD_DIR/"
 echo "----------------------------------------"
+
+cp ../README.md "$BUILD_DIR/README.md" 2>/dev/null || echo "No global README found to package."
+cd "$BUILD_DIR"
+zip -q trinity-release.zip trinity TrinityDaemon README.md 2>/dev/null || zip -q trinity-release.zip trinity TrinityDaemon
+cd ..
+
 echo ""
 echo "To install the ecosystem globally, run:"
 echo "sudo mkdir -p '/Library/Application Support/Trinity'"
