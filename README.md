@@ -1,88 +1,87 @@
-# Trinity
+# ⬛️ Trinity
 
-Trinity is a ruthless, terminal-based, system-wide website blocker for macOS. 
+Trinity is a ruthless, terminal-based, system-wide website blocker engineered natively for both **macOS** and **Windows**. 
 
-Unlike browser extensions that can be casually disabled, Trinity manipulates your routing tables at the root level using an invisible background UNIX daemon. It implements a **ratchet mechanism**: adding websites to the blocklist is instant and unconditionally allowed, but removing a website requires surviving a gauntlet of 100 continuously generated math problems to "unlock" the system for a 30-minute grace period.
+Unlike browser extensions that can be casually disabled, Trinity manipulates your routing tables at the root OS level using invisible background engines (macOS LaunchDaemons and native Windows Services). It implements a **ratchet mechanism**: adding websites to the blocklist is instant and unconditionally allowed, but removing a website requires surviving a gauntlet of 100 continuously generated math problems to "unlock" the system for a 30-minute grace period.
 
 There is no GUI. There is no easy "off" switch. 
 
 ## Features
-- **Root-Level Enforcement:** Modifies `/etc/hosts` to completely blackout domains (including IPv6 loops) across all browsers system-wide.
-- **Fail-Closed Architecture:** Killing the daemon does not unblock your internet. The background process is the only piece of the software authorized to safely tear down the blocks when unlocked.
-- **Math Challenge Unlock:** 100 generated arithmetic challenges required to grant yourself a 30-minute grace period to edit the blocklist.
-- **Headless Ecosystem:** Managed entirely through the `trinity` CLI tool.
-- **Auto-Updater:** Uses an embedded `sudo trinity update` pipeline that fetches pre-compiled binaries directly from GitHub releases with rollback-safe atomic transactions.
+- **Root-Level Enforcement:** Modifies primary system routing tables (including IPv6 loops) to completely blackout domains system-wide across all browsers.
+- **Fail-Closed Architecture:** Killing the daemon does not seamlessly unblock your internet. The background process is the only piece of the software mathematically authorized to perfectly reconstruct and tear down the tables.
+- **Math Challenge Unlock:** 100 dynamic arithmetic challenges required to grant yourself a 30-minute grace period to edit the blocklist.
+- **Headless Ecosystem:** Managed entirely through the `trinity` CLI tool with a striking terminal ASCII interface.
 
 ---
 
-## Installation
+## Installation & Architecture
 
-### Method 1: Install from Source (Recommended for Developers)
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/nostr0mo9/Trinity.git
-   cd Trinity/TrinityApp
-   ```
-2. Compile and package the resources using the build script:
-   ```bash
-   ./build_and_install.sh
-   ```
-3. Follow the output instructions to copy the compiled binaries and `com.trinity.daemon.plist` to their system directories:
-   ```bash
-   sudo mkdir -p '/Library/Application Support/Trinity'
-   sudo cp build/TrinityDaemon '/Library/Application Support/Trinity/TrinityDaemon'
-   sudo cp com.trinity.daemon.plist /Library/LaunchDaemons/com.trinity.daemon.plist
-   sudo chmod 644 /Library/LaunchDaemons/com.trinity.daemon.plist
-   sudo cp build/trinity /usr/local/bin/trinity
-   ```
+The repository operates as a "Monorepo" containing two entirely separate, highly optimized native codebases:
 
-### Method 2: Auto-Update 
-If you already have a version installed globally, simply run:
+### 🍏 macOS (`TrinityMac/`)
+* **Environment:** Pure Swift and native Apple extensions.
+* **Engine:** Headless `launchctl` Daemon manipulating `/etc/hosts` and `dscacheutil`.
+
+**Installation (From Source):**
+```bash
+git clone https://github.com/nostr0mo9/Trinity.git
+cd Trinity/TrinityMac
+./build_and_install.sh
+```
+Follow the terminal output to drop the compiled binaries into their system directories.
+
+**Auto-Update:** Mac users can dynamically bypass building from source by letting the CLI pull the latest pre-compiled releases from GitHub:
 ```bash
 sudo trinity update
 ```
-The CLI will dynamically pull the `trinity-release.zip` package from the latest GitHub Release and gracefully transition the system binaries for you.
 
----
+### 🪟 Windows (`TrinityWindows/`)
+* **Environment:** Pure Golang (statically linked for maximum portability).
+* **Engine:** Headless Go ecosystem bound perpetually as a native background `Windows Service`.
 
-## Usage
-
-Once you have installed Trinity, it won't actually do anything until you explicitly turn the background service on. macOS uses a native tool called `launchctl` to manage background daemon tasks. Trinity wraps this complex tool perfectly for you under the hood—which basically just means you need to run `sudo trinity start` to connect everything!
-
-### Starting the Daemon
-```bash
-sudo trinity start
+**Installation (From Source):**
+*(Requires Go 1.21+ installed)*
+```powershell
+git clone https://github.com/nostr0mo9/Trinity.git
+cd Trinity\TrinityWindows
+go build -o trinity-daemon.exe cmd\daemon\main.go
+go build -o trinity.exe cmd\trinity\main.go
 ```
-*This boots the background daemon securely to `root`. It will automatically begin enforcing blocks instantly.*
-
-### Command Reference
-
-*   `trinity help` — Prints the quick-reference guide for all commands.
-*   `trinity version` — Displays the currently installed version of Trinity.
-*   `trinity block <domain>` — Instantly adds a domain (e.g., `x.com`) to the system blocklist.
-*   `trinity unblock <domain>` — Safely strips a domain out. *(Fails instantly if the system is locked)*.
-*   `trinity list` — Prints out everything currently blocked.
-*   `trinity status` — Neatly outputs whether the daemon is actively running and whether your system is LOCKED or UNLOCKED.
-*   `trinity unlock` — Triggers the 100-question math challenge to authorize changes.
-
-**Management (Requires Sudo):**
-*   `sudo trinity start` — Boots the background daemon. Enforces the blocklist globally.
-*   `sudo trinity stop` — Shuts down the background service. *(Fails instantly if the system is locked, preventing you from casually killing the blocker)*.
-*   `sudo trinity update` — Automatically patches your locally installed binaries with the latest GitHub release.
 
 ---
 
-## Emergency Administrator Recovery
+## 🧮 Usage (Cross-Platform)
 
-We designed Trinity to be mathematically ruthless, but it is **not** malware. If files are accidentally deleted or a catastrophic system failure occurs, it will "Fail-Closed" and keep the websites permanently blocked.
+Once installed, standard management is identical across platforms:
+
+*   `trinity help` — Prints the quick-reference manual.
+*   `trinity version` — Displays the matrix version installed locally.
+*   `trinity block <domain>` — Instantly adds a domain (e.g., `x.com`) to the system blocklist.
+*   `trinity unblock <domain>` — Safely strips a domain out. *(Fails instantly if locked)*.
+*   `trinity list` — Prints out everything currently blocked.
+*   `trinity status` — Outputs daemon health and your LOCKED/UNLOCKED access parameters.
+*   `trinity unlock` — Triggers the 100-question math challenge to authorize changes over a 30-minute grace period.
+
+**Administrative Management (Requires Sudo/Run as Administrator):**
+*   `trinity start` — Boots the background service to the system root. Enforces the blocklist globally.
+*   `trinity stop` — Shuts down the background service. *(Fails instantly if locked)*.
+*   `trinity delete` — Completely tears down the daemon, destroys the system configurations perfectly, and deletes itself. *(Fails instantly if locked)*.
+
+---
+
+## 🚨 Emergency Administrator Recovery
+
+We designed Trinity to be mathematically ruthless, but it is **not** malware. If files are accidentally deleted or a catastrophic system failure occurs, it will "Fail-Closed" and rigidly maintain the blocks.
 
 However, there is always a supported administrative escape hatch:
 
 **Option 1: Re-Installation (Recommended)**
-If you delete the `trinity` CLI to bypass the lock, the Math Challenge becomes inaccessible. To get it back, you do not need to start over! Simply [download the latest release](https://github.com/nostr0mo9/Trinity/releases) or recompile from GitHub. Re-running the installation magically re-attaches to the background daemon, returning your access to the `trinity unlock` feature natively.
+If you delete the `trinity` CLI to bypass the lock, the Math Challenge becomes wildly inaccessible. To get it back, you do not need to start over! Simply download the latest release or recompile from GitHub. Re-running the installation magically re-attaches to the indestructible background daemon, returning your access to the `trinity unlock` feature natively.
 
-**Option 2: Nuclear Uninstall (Admin Only)**
-If you completely forget your passwords, or there is a catastrophic bug, a system administrator can manually sever the routing tables using the initial backup file Trinity saved on boot:
+**Option 2: Nuclear Uninstall (Disaster Recovery)**
+If you undergo catastrophic software failure and cannot securely invoke `trinity delete`, you must manually purge the system frameworks:
+
+**macOS:**
 ```bash
 # 1. Kill the background daemon
 sudo launchctl bootout system/com.trinity.daemon
@@ -91,15 +90,10 @@ sudo launchctl bootout system/com.trinity.daemon
 sudo cp '/Library/Application Support/Trinity/hosts.backup' /etc/hosts
 
 # 3. Clean out the application environments
-sudo rm -rf '/Library/Application Support/Trinity'
-sudo rm -rf '/Users/Shared/Trinity'
-sudo rm /usr/local/bin/trinity
+sudo rm -rf '/Library/Application Support/Trinity' '/Users/Shared/Trinity' /usr/local/bin/trinity
 ```
 
----
-
-## Security Model & Data Paths
-- **Executable Paths**: `trinity` lives universally at `/usr/local/bin/trinity`. The actual enforcer is isolated at `/Library/Application Support/Trinity/TrinityDaemon`.
-- **Persistent Data**: The blocklists and locking state logic are stored safely inside `/Users/Shared/Trinity/`. Because the daemon cleanly separates executables from user data, updating the CLI code will never reset your lists or allow you to escape an active math challenge restriction.
-
-> **Note:** Because Trinity runs as a system LaunchDaemon, it automatically survives computer restarts. Once you install and start the daemon, the blocker will automatically boot up silently in the background every single time you turn on your Mac, even before you log in!
+**Windows:**
+1. Stop the `TrinityDaemon` natively inside `services.msc`.
+2. Open `C:\Windows\System32\drivers\etc\hosts` as an Administrator and erase the `# --- TRINITY START ---` payload natively.
+3. Delete all lingering `.exe` dependencies on your hard drive manually.
