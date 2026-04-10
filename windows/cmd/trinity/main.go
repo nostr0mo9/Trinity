@@ -146,6 +146,8 @@ func main() {
 			}
 		case "list":
 			runList()
+		case "delete":
+			runDelete()
 		case "start":
 			runStart()
 		case "stop":

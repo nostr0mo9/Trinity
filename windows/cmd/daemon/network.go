@@ -4,24 +4,17 @@ import (
 	"bufio"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/nostr0mo9/trinity-windows/internal/config"
+	"github.com/nostr0mo9/trinity-windows/internal/hosts"
 )
-
-const markerStart = "# --- TRINITY MANAGED BLOCK ---"
-const markerEnd = "# --- TRINITY MANAGED END ---"
-
-func getHostsPath() string {
-	return filepath.Join(os.Getenv("SystemRoot"), "System32", "drivers", "etc", "hosts")
-}
 
 func UpdateNetworkEnforcement() error {
 	conf := config.LoadConfig()
 	locked, _ := config.GetLockInfo() // Returns true if locked, unlockedDate
 
-	hostsPath := getHostsPath()
+	hostsPath := hosts.GetHostsPath()
 
 	// Read existing hosts without Trinity marks
 	content, err := os.ReadFile(hostsPath)
@@ -31,11 +24,11 @@ func UpdateNetworkEnforcement() error {
 		inTrinityBlock := false
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.TrimSpace(line) == markerStart {
+			if strings.TrimSpace(line) == hosts.MarkerStart {
 				inTrinityBlock = true
 				continue
 			}
-			if strings.TrimSpace(line) == markerEnd {
+			if strings.TrimSpace(line) == hosts.MarkerEnd {
 				inTrinityBlock = false
 				continue
 			}
@@ -50,12 +43,12 @@ func UpdateNetworkEnforcement() error {
 	// Always append the Trinity block at the end if Locked and domains exist
 	if locked && len(conf.BlockedDomains) > 0 {
 		newLines = append(newLines, "")
-		newLines = append(newLines, markerStart)
+		newLines = append(newLines, hosts.MarkerStart)
 		for _, d := range conf.BlockedDomains {
 			newLines = append(newLines, "0.0.0.0 "+d)
 			newLines = append(newLines, "::1 "+d)
 		}
-		newLines = append(newLines, markerEnd)
+		newLines = append(newLines, hosts.MarkerEnd)
 	}
 
 	finalContent := strings.Join(newLines, "\r\n")

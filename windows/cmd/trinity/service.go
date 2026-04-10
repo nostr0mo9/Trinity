@@ -94,14 +94,13 @@ func runStart() {
 func runStop() {
 	if !isElevated() {
 		ui.PrintCyberPanel("INSUFFICIENT PRIVILEGES", true, false, nil, nil, []ui.CustomLine{ // Just defaults for visual consistency
-			{"Error: `trinity stop` must be run as Administrator.", "\u001b[31m"},
+			{"Error: Administrator privileges required.", "\u001b[31m"},
 		})
 		os.Exit(1)
 	}
 
 	locked, _ := config.GetLockInfo()
 	if locked {
-        // Technically I am passing `true` for daemon state below to be consistent
 		ui.PrintCyberPanel("ACCESS DENIED", true, true, nil, nil, []ui.CustomLine{
 			{"Error: System is LOCKED.", "\u001b[31m"},
 			{"You cannot stop the daemon right now.", "\u001b[31m"},
@@ -110,30 +109,10 @@ func runStop() {
 		os.Exit(1)
 	}
 
-	m, err := mgr.Connect()
-	if err != nil {
-		return
-	}
-	defer m.Disconnect()
-
-	s, err := m.OpenService(srvName)
+	err := stopServiceSafely()
 	if err != nil {
 		ui.PrintCyberPanel("TEARDOWN FAILED", false, false, nil, nil, []ui.CustomLine{
-			{"Failed to stop daemon. Service doesn't exist?", "\u001b[31m"},
-		})
-		return
-	}
-	defer s.Close()
-
-    // Control service to stop
-    // we could use s.Control(svc.Stop)
-    _ = exec.Command("sc", "stop", srvName).Run()
-    
-    // Once stopped, we can delete the service
-	err = s.Delete()
-	if err != nil {
-		ui.PrintCyberPanel("TEARDOWN FAILED", false, false, nil, nil, []ui.CustomLine{
-			{"Failed to scrub daemon from registry.", "\u001b[31m"},
+			{err.Error(), "\u001b[31m"},
 		})
 		return
 	}
@@ -141,4 +120,25 @@ func runStop() {
 	ui.PrintCyberPanel("SYSTEM TEARDOWN", false, false, nil, nil, []ui.CustomLine{
 		{"Trinity background daemon safely stopped and removed.", "\u001b[32m"},
 	})
+}
+
+func stopServiceSafely() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("failed to connect to local SCM: %v", err)
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(srvName)
+	if err != nil {
+		return fmt.Errorf("failed to locate daemon service")
+	}
+	defer s.Close()
+
+	_ = exec.Command("sc", "stop", srvName).Run()
+	err = s.Delete()
+	if err != nil {
+		return fmt.Errorf("failed to scrub daemon from registry")
+	}
+	return nil
 }

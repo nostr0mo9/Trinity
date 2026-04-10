@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/nostr0mo9/trinity-windows/internal/config"
+	"github.com/nostr0mo9/trinity-windows/internal/hosts"
 	"github.com/nostr0mo9/trinity-windows/internal/ipc"
 	"golang.org/x/sys/windows/svc"
 )
@@ -46,7 +47,7 @@ loop:
 		case svc.Interrogate:
 			changes <- c.CurrentStatus
 		case svc.Stop, svc.Shutdown:
-			CleanupNetworkEnforcement()
+			hosts.CleanupNetworkEnforcement()
 			break loop
 		}
 	}

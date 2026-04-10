@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"github.com/nostr0mo9/trinity-windows/internal/hosts"
 )
 
 var (
@@ -37,6 +38,12 @@ func EnsureDirs() error {
 func LoadConfig() TrinityConfig {
 	data, err := os.ReadFile(ConfigURL)
 	if err != nil {
+		recovered := hosts.RecoverDomains()
+		if len(recovered) > 0 {
+			c := TrinityConfig{BlockedDomains: recovered}
+			_ = SaveConfig(c) // Casually re-hydrate state onto disk
+			return c
+		}
 		return TrinityConfig{BlockedDomains: []string{}}
 	}
 	var config TrinityConfig
