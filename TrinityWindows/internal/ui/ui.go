@@ -176,7 +176,7 @@ func StartChallenge() bool {
 	signal.Notify(sigChan, os.Interrupt)
 	go func() {
 		<-sigChan
-		fmt.Printf("\n%s  ↳ Challenge aborted by user.%s\n", red, reset)
+		fmt.Printf("\n\n%s  ↳ Challenge aborted by user.%s\n\n", red, reset)
 		os.Exit(1)
 	}()
 	defer signal.Stop(sigChan)
@@ -235,7 +235,7 @@ func StartChallenge() bool {
 			}
 			
 			if strings.ToLower(input) == "quit" {
-				fmt.Printf("\n%s  ↳ Challenge aborted by user.%s\n", red, reset)
+				fmt.Printf("\n%s  ↳ Challenge aborted by user.%s\n\n", red, reset)
 				return false
 			}
 
