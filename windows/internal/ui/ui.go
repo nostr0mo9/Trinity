@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -171,12 +172,21 @@ func PrintCyberPanel(headerTitle string, isDaemonActive bool, isLocked bool, dom
 }
 
 func StartChallenge() bool {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+	go func() {
+		<-sigChan
+		fmt.Printf("\n%s  ↳ Challenge aborted by user.%s\n", red, reset)
+		os.Exit(1)
+	}()
+	defer signal.Stop(sigChan)
+
 	fmt.Print("\033[2J\033[H")
 	PrintCyberPanel("INITIATE PROTOCOL", true, true, nil, nil, []CustomLine{
 		{"SUBJECT REQUESTED OVERRIDE.", red},
 		{"You must complete 100 math sequences.", dim},
 		{"Incorrect answers require a retry.", dim},
-		{"Ctrl+C to abort.", dim},
+		{"Ctrl+C or type quit to abort.", dim},
 	})
 
 	totalProblems := 100
@@ -216,11 +226,17 @@ func StartChallenge() bool {
 			progress := fmt.Sprintf("%03d", completed+1)
 			fmt.Printf("%s[%s/%d]%s %s%s = %s", themeColor, progress, totalProblems, reset, bold, q, reset)
 			if !scanner.Scan() {
+				time.Sleep(50 * time.Millisecond) // Allow SIGINT goroutine to print natively before nuclear exit
 				os.Exit(1)
 			}
 			input := strings.TrimSpace(scanner.Text())
 			if input == "" {
 				continue
+			}
+			
+			if strings.ToLower(input) == "quit" {
+				fmt.Printf("\n%s  ↳ Challenge aborted by user.%s\n", red, reset)
+				return false
 			}
 
 			pi, err := strconv.Atoi(input)
@@ -256,6 +272,7 @@ func PrintHelp() {
 		{"Administrative (Requires Admin):", bold},
 		{"  trinity start            - Register and boot daemon", dim},
 		{"  trinity stop             - Stop and un-register daemon", dim},
+		{"  trinity delete           - Permanently uninstall system natively", dim},
 	}
 	PrintCyberPanel("M A N U A L", true, true, nil, nil, lines) // isLocked/isDaemonActive pass dummy true to keep visual style consistent for help
 }
